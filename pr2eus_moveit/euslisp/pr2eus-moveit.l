@@ -63,6 +63,8 @@
          ((:robot rb) *pr2*) (frame-id "base_footprint") ;; frame-id needs to be contained in robot_model
          (multi-dof-joint-name "virtual_joint")
          (multi-dof-frame-id "odom_combined"))
+   (unless (ros::ok)
+     (ros::roseus "pr2eus_moveit_environment"))
    (setq scene-service sc-srv
          planning-service pl-srv
          execute-service ex-srv
@@ -75,8 +77,6 @@
    (ros::advertise planning-scene-world-topic moveit_msgs::PlanningSceneWorld)
    (setq default-link (send self :search-link-from-name frame-id))
    (setq config-list (send self :default-configuration))
-   (unless (ros::ok)
-     (ros::roseus "pr2eus_moveit_environment"))
    self)
   (:robot (&rest args) (forward-message-to robot args))
   (:sync-robot-model (rb &optional (change-argument nil))
@@ -95,10 +95,19 @@
     ((find-method robot (intern (string-upcase link-name) *keyword-package*))
      (send robot (intern (string-upcase link-name) *keyword-package*)))
     (t
-     (find-if #'(lambda (l) (cond ((symbolp (send l :name) (string= (symbol-string (send l :name)))))
-                                  ((stirngp (send l :name) (string= (send l :name))))
+     (find-if #'(lambda (l) (cond ((symbolp (send l :name) (string= (symbol-string (send l :name) link-name))))
+                                  ((stirngp (send l :name) (string= (send l :name) link-name)))
                                   (t nil))) (send robot :links))
      )))
+  (:search-joint-from-name
+   (joint-name)
+   (let ((ret
+          (find-if #'(lambda (sl)
+                       (string= (symbol-string (car sl))
+                                (string-upcase (format nil "~A_jt" joint-name))))
+                   (send robot :slots))))
+     (when ret
+       (cdr ret))))
   (:copy-robot-state (rb)
    (send robot :reset-coords)
    (send robot :transform (send rb :worldcoords))
@@ -581,11 +590,11 @@
               (tolerance-below-list) (tolerance-above-list)
               (name ""))
   (unless weight-list
-    (make-list (length joint-list) :initial-element default-weight))
+    (setq weight-list (make-list (length joint-list) :initial-element default-weight)))
   (unless tolerance-below-list
-    (make-list (length joint-list) :initial-element tolerance-below))
+    (setq tolerance-below-list (make-list (length joint-list) :initial-element tolerance-below)))
   (unless tolerance-above-list
-    (make-list (length joint-list) :initial-element tolerance-above))
+    (setq tolerance-above-list (make-list (length joint-list) :initial-element tolerance-above)))
   (instance moveit_msgs::constraints :init :name name
             :joint_constraints
             (mapcar #'(lambda (jn wt tbl tav)
