@@ -575,39 +575,76 @@
                                                       link_name target-coords args))))
   )
 
+(defun make-joint-constraints
+  (joint-list &key (tolerance-below 0.001) (tolerance-above 0.001)
+              (default-weight 1.0) (weight-list)
+              (tolerance-below-list) (tolerance-above-list)
+              (name ""))
+  (unless weight-list
+    (make-list (length joint-list) :initial-element default-weight))
+  (unless tolerance-below-list
+    (make-list (length joint-list) :initial-element tolerance-below))
+  (unless tolerance-above-list
+    (make-list (length joint-list) :initial-element tolerance-above))
+  (instance moveit_msgs::constraints :init :name name
+            :joint_constraints
+            (mapcar #'(lambda (jn wt tbl tav)
+                        (instance moveit_msgs::jointconstraint :init
+                                  :joint_name (send jn :name)
+                                  :position (send jn :ros-joint-angle)
+                                  :tolerance_below tbl
+                                  :tolerance_above tav
+                                  :weight wt))
+                    joint-list weight-list
+                    tolerance-below-list tolerance-above-list))
+  )
+
 (defun make-virtual-joint-constraints
-  (target-coords &key (joint-name "world_joint") (type :planner)
-                 (tolerance-above-list (float-vector 0.01 0.01 0.01 0.01 0.01 0.01))
-                 (tolerance-below-list (float-vector 0.01 0.01 0.01 0.01 0.01 0.01))
-                 (weight-list (float-vector 1 1 1 1 1 1)))
+  (target-coords &key (joint-name "world_joint") (type :float)
+                 (tolerance-above-list (float-vector 0.01 0.01 0.01 0.01 0.01 0.01 0.01))
+                 (tolerance-below-list (float-vector 0.01 0.01 0.01 0.01 0.01 0.01 0.01))
+                 (weight-list (float-vector 1 1 1 1 1 1 1)))
   (let (constraints
         (max-vec (coerce tolerance-above-list float-vector))
         (min-vec (coerce tolerance-below-list float-vector))
-        (weight-vec (coerce weight-list float-vector)))
-    (push
-     (instance moveit_msgs::jointconstraint :init
-               :joint_name (format nil "~A/x" joint-name)
-               :position (* 0.001 (elt (send target-coords :worldpos) 0))
-               :tolerance_above (elt max-vec 0)
-               :tolerance_below (elt min-vec 0)
-               :weight (elt weight-vec 0))
-     constraints)
-    (push
-     (instance moveit_msgs::jointconstraint :init
-               :joint_name (format nil "~A/y" joint-name)
-               :position (* 0.001 (elt (send target-coords :worldpos) 1))
-               :tolerance_above (elt max-vec 1)
-               :tolerance_below (elt min-vec 1)
-               :weight (elt weight-vec 1))
-     constraints)
-    (push
-     (instance moveit_msgs::jointconstraint :init
-               :joint_name (format nil "~A/theta" joint-name)
-               :position (* 0.001 (elt (send target-coords :worldpos) 1))
-               :tolerance_above (elt max-vec 2)
-               :tolerance_below (elt min-vec 2)
-               :weight (elt weight-vec 2))
-     constraints)
+        (weight-vec (coerce weight-list float-vector))
+        joint-value-list joint-suffix-list
+        (cntr 0))
+    (case type
+      (:planner
+       (let ((q (caar (send target-coords :rpy-angle)))
+             (p (send target-coords :worldpos)))
+         (setq joint-value-list
+               (list (* 0.001 (elt p 0))
+                     (* 0.001 (elt p 1))
+                     q))
+         (setq joint-suffix-list (list "x" "y" "theta"))
+         ))
+      ((:float t)
+       (let ((q (matrix2quaternion (send target-coords :worldrot)))
+             (p (send target-coords :worldpos)))
+         (setq joint-value-list
+               (list (* 0.001 (elt p 0))
+                     (* 0.001 (elt p 1))
+                     (* 0.001 (elt p 2))
+                     (elt q 1)
+                     (elt q 2)
+                     (elt q 3)
+                     (elt q 0)))
+         (setq joint-suffix-list (list "trans_x" "trans_y" "trans_z"
+                                       "rot_x" "rot_y" "rot_z" "rot_w"))
+         )))
+    (mapcar #'(lambda (_joint_suffix _joint_value)
+                (push
+                 (instance moveit_msgs::jointconstraint :init
+                           :joint_name (format nil "~A/~A" joint-name _joint_suffix)
+                           :position _joint_value
+                           :tolerance_above (elt max-vec cntr)
+                           :tolerance_below (elt min-vec cntr)
+                           :weight (elt weight-vec cntr))
+                 constraints)
+                (incf cntr))
+            joint-suffix-list joint-value-list)
     (instance moveit_msgs::constraints :init :name ""
               :joint_constraints constraints)
     ))
