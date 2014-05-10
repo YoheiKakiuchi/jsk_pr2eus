@@ -29,15 +29,16 @@ install(DIRECTORY test
   USE_SOURCE_PERMISSIONS
   )
 
-install(DIRECTORY .
+file(GLOB _install_files RELATIVE ${PROJECT_SOURCE_DIR} *.l *.launch)
+install(FILES ${_install_files}
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-  USE_SOURCE_PERMISSIONS
-  FILES_MATCHING
-  PATTERN "*.l"
-  PATTERN ".svn" EXCLUDE
+  )
+install(FILES pr2-send-joints.l pr2-read-state.l
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+  PERMISSIONS WORLD_EXECUTE
   )
 
 add_rostest(test/pr2eus-test.launch)
 add_rostest(test/make-pr2-model-file-test.launch)
 #add_rostest(test/pr2-ri-test.launch)
-
+add_rostest(test/robot-no-clock.test)
