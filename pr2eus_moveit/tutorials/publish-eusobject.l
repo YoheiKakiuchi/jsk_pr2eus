@@ -26,7 +26,7 @@
 (setq *coords*
       (make-coords :pos *trans*
                    :rot (quaternion2matrix *rot*)))
-
+(pprint *coords*)
 (when *objname*
   (load (format nil "models/~A-object.l" *objname*))
   (setq *obj* (funcall (read-from-string *objname*))))

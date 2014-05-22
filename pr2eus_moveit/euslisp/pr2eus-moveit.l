@@ -45,7 +45,7 @@
           execute-service
           query-planner-interface-service
           planning-scene-world-topic
-          robot
+          robot joint-state-topic
           default-frame-id default-link
           multi-dof-name multi-dof-frame
           ))
@@ -61,6 +61,7 @@
          ((:query-planner-interface-service qr-pl-srv) "/query_planner_interface")
          ((:planning-scene-world pl-sc-world) "/planning_scene_world")
          ((:robot rb) *pr2*) (frame-id "base_footprint") ;; frame-id needs to be contained in robot_model
+         ((:joint-state-topic jst) "/joint_states")
          (multi-dof-joint-name "virtual_joint")
          (multi-dof-frame-id "odom_combined"))
    (unless (ros::ok)
@@ -71,10 +72,12 @@
          query-planner-interface-service qr-pl-srv
          planning-scene-world-topic pl-sc-world
          robot rb
+         joint-state-topic jst
          default-frame-id frame-id
          multi-dof-name multi-dof-joint-name
          multi-dof-frame multi-dof-frame-id)
    (ros::advertise planning-scene-world-topic moveit_msgs::PlanningSceneWorld)
+   (ros::advertise joint-state-topic sensor_msgs::JointState)
    (setq default-link (send self :search-link-from-name frame-id))
    (setq config-list (send self :default-configuration))
    self)
@@ -319,7 +322,7 @@
      (send mpr :group_name group-name)
      (send mpr :num_planning_attempts planning-attempts)
      (send mpr :allowed_planning_time planning-time)
-     ;;(print-ros-msg mpr)
+     (print-ros-msg mpr)
      (setq res
            (ros::service-call planning-service
                               (instance moveit_msgs::GetMotionPlanRequest
@@ -645,6 +648,56 @@
                     tolerance-below-list tolerance-above-list))
   )
 
+(defun make-joint-state-of-multi-dof
+  (target-coords &key (joint-name "world_joint") (frame-id "odom") (type :float))
+  (let ((js (instance sensor_msgs::JointState :init
+                      :header (instance std_msgs::Header :init :frame_id frame-id))))
+    (case type
+      (:planner
+       ;;
+       )
+      ((:float t)
+       (let ((q (matrix2quaternion (send target-coords :worldrot)))
+             (p (send target-coords :worldpos)))
+         (send js :position (float-vector (* 0.001 (elt p 0))
+                                          (* 0.001 (elt p 1))
+                                          (* 0.001 (elt p 2))
+                                          (elt q 1)
+                                          (elt q 2)
+                                          (elt q 3)
+                                          (elt q 0)))
+         (send js :name (mapcar #'(lambda (n) (format nil "~A/~A" joint-name n))
+                                (list "trans_x" "trans_y" "trans_z"
+                                      "rot_x" "rot_y" "rot_z" "rot_w")))
+         ))
+      )
+    js))
+
+(defun make-multi-dof-joint-state
+  (target-coords &key (joint-name "world_joint") (frame-id "odom") (type :float))
+  (let ((js (instance sensor_msgs::MultiDofJointState :init
+                      :header (instance std_msgs::Header :init :frame_id frame-id))))
+    (case type
+      (:planner
+       ;;
+       )
+      ((:float t)
+       (send js :joint_names (list joint-name))
+       (send js :transforms (list (ros::coords->tf-transform target-coords)))
+       )
+      )
+    js))
+#|
+(instance moveit_msgs::PlanningScene :init :name "moge+" :robot_state
+          (instance moveit_msgs::RobotState :init
+                    :joint_state
+                    (instance sensor_msgs::JointState :init :header
+                              (instance std_msgs::Header :init :frame_id "moveit_base"))
+                    :multi_dof_joint_state
+                    (make-multi-dof-joint-state (make-coords :pos #f(1000 0 0)) :joint-name "virtual_joint" :frame-id "moveit_base")
+                    :is_diff t)
+          :is_diff t)
+|#
 (defun make-virtual-joint-constraints
   (target-coords &key (joint-name "world_joint") (type :float)
                  (tolerance-above-list (float-vector 0.01 0.01 0.01 0.01 0.01 0.01 0.01))
