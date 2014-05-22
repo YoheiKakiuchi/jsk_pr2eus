@@ -6,7 +6,7 @@
   <author email="k-okada@jsk.t.u-tokyo.ac.jp">furuta</author>
   <maintainer email="k-okada@jsk.t.u-tokyo.ac.jp">furuta</maintainer>
   <license>BSD</license>
-  <version>0.1.5</version>
+  <version>0.1.6</version>
   <url>http://ros.org/wiki/pr2eus</url>
   <buildtool_depend>catkin</buildtool_depend>
 
@@ -33,8 +33,6 @@
   <run_depend>nav_msgs</run_depend>
   <run_depend>dynamic_reconfigure</run_depend>
   <run_depend>sound_play</run_depend>
-
-  <run_depend>roseus_msgs</run_depend>
 
 </package>
 
